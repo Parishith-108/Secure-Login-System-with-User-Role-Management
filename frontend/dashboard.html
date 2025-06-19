@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Secure Login</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .dashboard-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>User Dashboard</h1>
+        <div id="userInfo" class="dashboard-card">
+            <h2>Welcome, <span id="username"></span>!</h2>
+            <p>Email: <span id="userEmail"></span></p>
+            <p>Role: <span id="userRole"></span></p>
+            <button id="logoutBtn">Logout</button>
+        </div>
+        
+        <!-- Admin section (will show only for admins) -->
+        <div id="adminSection" class="dashboard-card hidden">
+            <h2>Admin Panel</h2>
+            <p>This section is visible only to administrators.</p>
+            <button id="manageUsersBtn">Manage Users</button>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('authToken');
+            
+            if (!token) {
+                alert('Please login first');
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            try {
+                // Fetch user data using token
+                const response = await fetch('http://localhost:5000/protected', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    
+                    // Display user info
+                    document.getElementById('username').textContent = userData.username;
+                    document.getElementById('userEmail').textContent = userData.email;
+                    document.getElementById('userRole').textContent = userData.role;
+                    
+                    // Show admin section if admin
+                    if (userData.role === 'admin') {
+                        document.getElementById('adminSection').classList.remove('hidden');
+                    }
+                } else {
+                    alert('Session expired. Please login again.');
+                    localStorage.removeItem('authToken');
+                    window.location.href = 'login.html';
+                }
+            } catch (error) {
+                console.error('Dashboard error:', error);
+                alert('Error loading dashboard');
+            }
+            
+            // Logout button
+            document.getElementById('logoutBtn').addEventListener('click', () => {
+                localStorage.removeItem('authToken');
+                window.location.href = 'login.html';
+            });
+        });
+    </script>
+</body>
+</html>

@@ -2,16 +2,26 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
-import os  # Add this import
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from datetime import timedelta
+import os
 
+# Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS
+
+# Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET', 'super-secret-dev-key')  # Change for production!
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)  # Token expires in 1 hour
 
+# Initialize extensions
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
+jwt = JWTManager(app)  # JWT for authentication
 
+# User Model
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -19,7 +29,6 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), nullable=False)
 
-# ===== FIXED DATABASE INITIALIZATION =====
 # Create database if it doesn't exist
 def initialize_database():
     if not os.path.exists('users.db'):
@@ -30,9 +39,13 @@ def initialize_database():
         print("Database already exists")
 
 initialize_database()
+
+# =============== ROUTES ===============
+
+# Home route
 @app.route('/')
 def home():
-    return "Backend is running! Go to /register for registration."
+    return "Backend is running! Endpoints: /register, /login, /protected"
 
 # Registration endpoint
 @app.route('/register', methods=['POST'])
@@ -60,8 +73,10 @@ def register():
         return jsonify({'error': 'Username already taken'}), 400
     
     try:
+        # Hash password
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
         
+        # Create new user
         new_user = User(
             username=username,
             email=email,
@@ -69,6 +84,7 @@ def register():
             role=role
         )
         
+        # Add to database
         db.session.add(new_user)
         db.session.commit()
         
@@ -85,6 +101,99 @@ def register():
     except Exception as e:
         print(f"Registration error: {str(e)}")
         return jsonify({'error': 'Registration failed. Please try again.'}), 500
+
+# Login endpoint
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data received'}), 400
+    
+    email = data.get('email')
+    password = data.get('password')
+    
+    if not all([email, password]):
+        return jsonify({'error': 'Missing email or password'}), 400
+    
+    # Find user by email
+    user = User.query.filter_by(email=email).first()
+    
+    if not user:
+        return jsonify({'error': 'Invalid credentials'}), 401
+    
+    # Verify password
+    if not bcrypt.check_password_hash(user.password, password):
+        return jsonify({'error': 'Invalid credentials'}), 401
+    
+    # Create access token
+    access_token = create_access_token(identity={
+        'id': user.id,
+        'email': user.email,
+        'role': user.role
+    })
+    
+    return jsonify({
+        'message': 'Login successful',
+        'access_token': access_token,
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'role': user.role
+        }
+    }), 200
+
+# Protected route - requires valid JWT
+@app.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    try:
+        # Get identity from JWT token
+        current_user = get_jwt_identity()
+        
+        # Get full user details from database
+        user = User.query.get(current_user['id'])
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify({
+            'message': 'Access granted',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Admin-only route (preview for Day 6)
+@app.route('/admin', methods=['GET'])
+@jwt_required()
+def admin_dashboard():
+    current_user = get_jwt_identity()
+    
+    # Only allow admins
+    if current_user['role'] != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    # Get all users (for admin view)
+    users = User.query.all()
+    users_list = []
+    for user in users:
+        users_list.append({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role
+        })
+    
+    return jsonify({
+        'message': 'Admin dashboard',
+        'users': users_list
+    }), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
