@@ -1,23 +1,121 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Secure Login</title>
     <link rel="stylesheet" href="style.css">
-    <title>Register</title>
+    <style>
+        .error { color: red; margin-top: 5px; }
+        .success { color: green; margin-top: 5px; }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Register</h1>
+        <h1>Create Account</h1>
         <form id="registerForm">
-            <input type="text" id="username" placeholder="Username" required>
-            <input type="email" id="email" placeholder="Email" required>
-            <input type="password" id="password" placeholder="Password" minlength="8" required>
-            <select id="role">
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-            </select>
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+                <div id="usernameError" class="error"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+                <div id="emailError" class="error"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password (min 8 characters):</label>
+                <input type="password" id="password" name="password" minlength="8" required>
+                <div id="passwordError" class="error"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="role">Account Type:</label>
+                <select id="role" name="role">
+                    <option value="user">Regular User</option>
+                    <option value="admin">Administrator</option>
+                </select>
+            </div>
+            
             <button type="submit">Register</button>
+            <div id="formMessage" class="success"></div>
         </form>
+        <p>Already have an account? <a href="login.html">Login here</a></p>
     </div>
-    <script src="app.js"></script>
+    
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Reset error messages
+            document.querySelectorAll('.error').forEach(el => el.textContent = '');
+            document.getElementById('formMessage').textContent = '';
+            
+            // Get form values
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            
+            // Client-side validation
+            if (!username) {
+                document.getElementById('usernameError').textContent = 'Username is required';
+                return;
+            }
+            
+            if (!email) {
+                document.getElementById('emailError').textContent = 'Email is required';
+                return;
+            } else if (!/\S+@\S+\.\S+/.test(email)) {
+                document.getElementById('emailError').textContent = 'Invalid email format';
+                return;
+            }
+            
+            if (password.length < 8) {
+                document.getElementById('passwordError').textContent = 'Password must be at least 8 characters';
+                return;
+            }
+            
+            try {
+                // Show loading state
+                const btn = document.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                btn.textContent = 'Registering...';
+                
+                // Send data to backend
+                const response = await fetch('http://localhost:5000/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, email, password, role })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('formMessage').textContent = 'Registration successful! Redirecting...';
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 2000);
+                } else {
+                    document.getElementById('formMessage').textContent = result.error || 'Registration failed';
+                    document.getElementById('formMessage').className = 'error';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('formMessage').textContent = 'Network error. Please try again.';
+                document.getElementById('formMessage').className = 'error';
+            } finally {
+                // Reset button state
+                const btn = document.querySelector('button[type="submit"]');
+                btn.disabled = false;
+                btn.textContent = 'Register';
+            }
+        });
+    </script>
 </body>
 </html>
