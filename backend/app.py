@@ -5,6 +5,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from datetime import timedelta
 import os
+from functools import wraps  # Added for decorators
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -40,12 +41,22 @@ def initialize_database():
 
 initialize_database()
 
+# ===== ROLE-BASED ACCESS MIDDLEWARE =====
+def admin_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
 # =============== ROUTES ===============
 
 # Home route
 @app.route('/')
 def home():
-    return "Backend is running! Endpoints: /register, /login, /protected"
+    return "Backend is running! Endpoints: /register, /login, /protected, /admin/users"
 
 # Registration endpoint
 @app.route('/register', methods=['POST'])
@@ -169,17 +180,11 @@ def protected():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Admin-only route (preview for Day 6)
-@app.route('/admin', methods=['GET'])
+# Get all users (admin only)
+@app.route('/admin/users', methods=['GET'])
 @jwt_required()
-def admin_dashboard():
-    current_user = get_jwt_identity()
-    
-    # Only allow admins
-    if current_user['role'] != 'admin':
-        return jsonify({'error': 'Admin access required'}), 403
-    
-    # Get all users (for admin view)
+@admin_required
+def get_all_users():
     users = User.query.all()
     users_list = []
     for user in users:
@@ -189,11 +194,54 @@ def admin_dashboard():
             'email': user.email,
             'role': user.role
         })
+    return jsonify(users_list), 200
+
+# Update user role (admin only)
+@app.route('/admin/users/<int:user_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_user_role(user_id):
+    data = request.get_json()
+    if not data or 'role' not in data:
+        return jsonify({'error': 'Role is required'}), 400
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    if data['role'] not in ['admin', 'user']:
+        return jsonify({'error': 'Invalid role'}), 400
+    
+    user.role = data['role']
+    db.session.commit()
     
     return jsonify({
-        'message': 'Admin dashboard',
-        'users': users_list
+        'message': 'User role updated',
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'role': user.role
+        }
     }), 200
+
+# Delete user (admin only)
+@app.route('/admin/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def delete_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Cannot delete self
+    current_user_id = get_jwt_identity()['id']
+    if user.id == current_user_id:
+        return jsonify({'error': 'Cannot delete your own account'}), 400
+    
+    db.session.delete(user)
+    db.session.commit()
+    
+    return jsonify({'message': 'User deleted successfully'}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
