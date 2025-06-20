@@ -1,17 +1,72 @@
-// Password strength check
-document.getElementById('registerForm').addEventListener('submit', function(e) {
-    const password = document.getElementById('password').value;
-    if(password.length < 8) {
-        alert('Password must be at least 8 characters');
-        e.preventDefault();
+document.addEventListener('DOMContentLoaded', () => {
+    const registerForm = document.getElementById('registerForm');
+    const loginForm = document.getElementById('loginForm');
+    
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
+    }
+    
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
     }
 });
 
-// Email format validation
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-    const email = document.getElementById('email').value;
-    if(!/^\w+@[a-zA-Z_]+?\.[a-zA-Z]{2,3}$/.test(email)) {
-        alert('Invalid email format');
-        e.preventDefault();
+async function handleRegister(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const response = await fetch('/register', {
+        method: 'POST',
+        body: formData
+    });
+    
+    const result = await response.json();
+    document.getElementById('message').textContent = result.success || result.error;
+    if (response.ok) {
+        setTimeout(() => window.location.href = '/', 1500);
     }
-});
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const response = await fetch('/login', {
+        method: 'POST',
+        body: formData
+    });
+    
+    const result = await response.json();
+    if (response.ok) {
+        window.location.href = '/dashboard';
+    } else {
+        document.getElementById('message').textContent = result.error;
+    }
+}
+
+async function logout() {
+    const response = await fetch('/logout', {
+        method: 'POST',
+        credentials: 'include'
+    });
+    
+    if (response.ok) {
+        window.location.href = '/';
+    }
+}
+
+async function updateRole(userId) {
+    const newRole = document.getElementById(`role_${userId}`).value;
+    const response = await fetch('/update-role', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            user_id: userId,
+            role: newRole
+        }),
+        credentials: 'include'
+    });
+    
+    const result = await response.json();
+    alert(result.success || result.error);
+}
