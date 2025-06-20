@@ -6,9 +6,146 @@
     <title>Register - Secure Login</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .error { color: red; margin-top: 5px; }
-        .success { color: green; margin-top: 5px; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 25px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #444;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            border-color: #2575fc;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 117, 252, 0.2);
+        }
+        
+        button {
+            background: #2575fc;
+            color: white;
+            border: none;
+            padding: 14px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #1a65e0;
+        }
+        
+        p {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        a {
+            color: #2575fc;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .error {
+            color: #dc3545;
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .success {
+            color: #28a745;
+            margin-top: 5px;
+        }
+        
+        .password-strength {
+            margin-top: 10px;
+        }
+        
+        .strength-meter {
+            height: 5px;
+            background-color: #eee;
+            border-radius: 3px;
+            margin-bottom: 5px;
+            overflow: hidden;
+        }
+        
+        .strength-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #dc3545;
+            transition: width 0.3s, background-color 0.3s;
+        }
+        
+        #passwordRules ul {
+            list-style: none;
+            padding-left: 0;
+            margin-top: 5px;
+            font-size: 0.85rem;
+        }
+        
+        #passwordRules li {
+            margin-bottom: 2px;
+            color: #6c757d;
+        }
+        
+        #passwordRules li.valid {
+            color: #28a745;
+        }
+        
+        #g-recaptcha {
+            margin: 15px 0;
+        }
+        
+        .strength-text {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
     </style>
+    <!-- Google reCAPTCHA API -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
     <div class="container">
@@ -27,9 +164,27 @@
             </div>
             
             <div class="form-group">
-                <label for="password">Password (min 8 characters):</label>
+                <label for="password">Password:</label>
                 <input type="password" id="password" name="password" minlength="8" required>
                 <div id="passwordError" class="error"></div>
+                
+                <!-- Password Strength Meter -->
+                <div class="password-strength">
+                    <div class="strength-meter">
+                        <div class="strength-bar"></div>
+                    </div>
+                    <div class="strength-text">Password Strength: <span id="strength-text">None</span></div>
+                </div>
+                
+                <div id="passwordRules">
+                    <ul>
+                        <li id="length">At least 8 characters</li>
+                        <li id="uppercase">Contains uppercase letter</li>
+                        <li id="lowercase">Contains lowercase letter</li>
+                        <li id="number">Contains number</li>
+                        <li id="special">Contains special character</li>
+                    </ul>
+                </div>
             </div>
             
             <div class="form-group">
@@ -40,13 +195,82 @@
                 </select>
             </div>
             
+            <!-- CAPTCHA -->
+            <div class="form-group">
+                <div id="g-recaptcha" class="g-recaptcha" data-sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"></div>
+                <div id="captchaError" class="error"></div>
+            </div>
+            
             <button type="submit">Register</button>
-            <div id="formMessage" class="success"></div>
+            <div id="formMessage" class="error"></div>
         </form>
         <p>Already have an account? <a href="login.html">Login here</a></p>
     </div>
     
     <script>
+        // Password strength meter
+        const passwordInput = document.getElementById('password');
+        const strengthBar = document.querySelector('.strength-bar');
+        const strengthText = document.getElementById('strength-text');
+        const passwordRules = document.getElementById('passwordRules').querySelectorAll('li');
+        
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            let strength = 0;
+            
+            // Reset rules
+            passwordRules.forEach(rule => rule.classList.remove('valid'));
+            
+            // Length check
+            if (password.length >= 8) {
+                strength += 20;
+                document.getElementById('length').classList.add('valid');
+            }
+            
+            // Uppercase check
+            if (/[A-Z]/.test(password)) {
+                strength += 20;
+                document.getElementById('uppercase').classList.add('valid');
+            }
+            
+            // Lowercase check
+            if (/[a-z]/.test(password)) {
+                strength += 20;
+                document.getElementById('lowercase').classList.add('valid');
+            }
+            
+            // Number check
+            if (/[0-9]/.test(password)) {
+                strength += 20;
+                document.getElementById('number').classList.add('valid');
+            }
+            
+            // Special char check
+            if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+                strength += 20;
+                document.getElementById('special').classList.add('valid');
+            }
+            
+            // Update strength bar
+            strengthBar.style.width = strength + '%';
+            
+            // Update colors and text
+            if (strength < 40) {
+                strengthBar.style.backgroundColor = '#dc3545';
+                strengthText.textContent = 'Weak';
+                strengthText.style.color = '#dc3545';
+            } else if (strength < 80) {
+                strengthBar.style.backgroundColor = '#ffc107';
+                strengthText.textContent = 'Medium';
+                strengthText.style.color = '#ffc107';
+            } else {
+                strengthBar.style.backgroundColor = '#28a745';
+                strengthText.textContent = 'Strong';
+                strengthText.style.color = '#28a745';
+            }
+        });
+        
+        // Registration form submission
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -59,6 +283,13 @@
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const role = document.getElementById('role').value;
+            
+            // Get reCAPTCHA response
+            const captchaToken = grecaptcha.getResponse();
+            if (!captchaToken) {
+                document.getElementById('captchaError').textContent = 'Please complete the CAPTCHA';
+                return;
+            }
             
             // Client-side validation
             if (!username) {
@@ -74,8 +305,10 @@
                 return;
             }
             
-            if (password.length < 8) {
-                document.getElementById('passwordError').textContent = 'Password must be at least 8 characters';
+            // Check password strength
+            const strengthRules = document.querySelectorAll('#passwordRules li.valid');
+            if (strengthRules.length < 5) {
+                document.getElementById('passwordError').textContent = 'Password does not meet requirements';
                 return;
             }
             
@@ -91,24 +324,29 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ username, email, password, role })
+                    body: JSON.stringify({ 
+                        username, 
+                        email, 
+                        password, 
+                        role,
+                        captcha_token: captchaToken 
+                    })
                 });
                 
                 const result = await response.json();
                 
                 if (response.ok) {
                     document.getElementById('formMessage').textContent = 'Registration successful! Redirecting...';
+                    document.getElementById('formMessage').className = 'success';
                     setTimeout(() => {
                         window.location.href = 'login.html';
                     }, 2000);
                 } else {
                     document.getElementById('formMessage').textContent = result.error || 'Registration failed';
-                    document.getElementById('formMessage').className = 'error';
                 }
             } catch (error) {
                 console.error('Error:', error);
                 document.getElementById('formMessage').textContent = 'Network error. Please try again.';
-                document.getElementById('formMessage').className = 'error';
             } finally {
                 // Reset button state
                 const btn = document.querySelector('button[type="submit"]');

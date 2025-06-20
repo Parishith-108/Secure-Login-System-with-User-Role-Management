@@ -1,34 +1,56 @@
+import os
+from dotenv import load_dotenv # Import the load_dotenv function
+load_dotenv()
+
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from datetime import timedelta
+from datetime import timedelta, datetime
 import os
-from functools import wraps  # Added for decorators
+from functools import wraps
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+import re  # For password validation
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS
+CORS(app)
 
 # Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET', 'super-secret-dev-key')  # Change for production!
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)  # Token expires in 1 hour
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET', 'fallback-secret')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
+app.config['RECAPTCHA_ENABLED'] = True
+app.config['RECAPTCHA_SITE_KEY'] = os.environ.get('RECAPTCHA_SITE_KEY', 'your-site-key')
+app.config['RECAPTCHA_SECRET_KEY'] = os.environ.get('RECAPTCHA_SECRET_KEY', 'your-secret-key')
+app.config['RATELIMIT_STORAGE_URI'] = 'memory://'
+app.config['LOCKOUT_THRESHOLD'] = 5  # 5 failed attempts
+app.config['LOCKOUT_TIME'] = 300  # 5 minutes in seconds
 
 # Initialize extensions
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
-jwt = JWTManager(app)  # JWT for authentication
+jwt = JWTManager(app)
 
-# User Model
+# FIXED LIMITER INITIALIZATION
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
+
+# User Model with lockout fields
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), nullable=False)
+    failed_attempts = db.Column(db.Integer, default=0)
+    locked_until = db.Column(db.DateTime, nullable=True)
 
 # Create database if it doesn't exist
 def initialize_database():
@@ -41,7 +63,7 @@ def initialize_database():
 
 initialize_database()
 
-# ===== ROLE-BASED ACCESS MIDDLEWARE =====
+# ===== SECURITY MIDDLEWARE =====
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
@@ -51,20 +73,56 @@ def admin_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+def validate_password(password):
+    """Enforce strong password policy"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters"
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r"[0-9]", password):
+        return False, "Password must contain at least one digit"
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "Password must contain at least one special character"
+    return True, ""
+
+def check_account_lock(user):
+    """Check if account is locked"""
+    if user.locked_until and user.locked_until > datetime.utcnow():
+        time_left = (user.locked_until - datetime.utcnow()).seconds
+        return True, time_left
+    elif user.failed_attempts >= app.config['LOCKOUT_THRESHOLD']:
+        # Reset if lock time expired but failed attempts weren't reset
+        user.failed_attempts = 0
+        db.session.commit()
+    return False, 0
+
 # =============== ROUTES ===============
 
-# Home route
 @app.route('/')
 def home():
     return "Backend is running! Endpoints: /register, /login, /protected, /admin/users"
 
-# Registration endpoint
+# Registration endpoint with CAPTCHA and password validation
 @app.route('/register', methods=['POST'])
+@limiter.limit("5 per minute")
 def register():
     data = request.get_json()
     
     if not data:
         return jsonify({'error': 'No data received'}), 400
+    
+    # CAPTCHA verification (frontend will send token)
+    if app.config['RECAPTCHA_ENABLED']:
+        captcha_token = data.get('captcha_token')
+        if not captcha_token:
+            return jsonify({'error': 'CAPTCHA verification required'}), 400
+        
+        # In production, verify with Google
+        # For demo, we'll just check if token exists
+        if not captcha_token:
+            return jsonify({'error': 'CAPTCHA verification required'}), 400
     
     username = data.get('username')
     email = data.get('email')
@@ -73,6 +131,11 @@ def register():
     
     if not all([username, email, password, role]):
         return jsonify({'error': 'Missing required fields'}), 400
+    
+    # Validate password strength
+    is_valid, pwd_msg = validate_password(password)
+    if not is_valid:
+        return jsonify({'error': pwd_msg}), 400
     
     # Check for existing user
     existing_email = User.query.filter_by(email=email).first()
@@ -113,8 +176,9 @@ def register():
         print(f"Registration error: {str(e)}")
         return jsonify({'error': 'Registration failed. Please try again.'}), 500
 
-# Login endpoint
+# Login endpoint with account lockout
 @app.route('/login', methods=['POST'])
+@limiter.limit("10 per minute")
 def login():
     data = request.get_json()
     
@@ -130,12 +194,34 @@ def login():
     # Find user by email
     user = User.query.filter_by(email=email).first()
     
-    if not user:
+    # Check account lock
+    if user:
+        is_locked, time_left = check_account_lock(user)
+        if is_locked:
+            return jsonify({
+                'error': f'Account locked. Try again in {time_left} seconds'
+            }), 403
+    
+    # Verify credentials
+    if not user or not bcrypt.check_password_hash(user.password, password):
+        if user:
+            # Increment failed attempts
+            user.failed_attempts += 1
+            
+            # Lock account if threshold reached
+            if user.failed_attempts >= app.config['LOCKOUT_THRESHOLD']:
+                user.locked_until = datetime.utcnow() + timedelta(
+                    seconds=app.config['LOCKOUT_TIME']
+                )
+            
+            db.session.commit()
+        
         return jsonify({'error': 'Invalid credentials'}), 401
     
-    # Verify password
-    if not bcrypt.check_password_hash(user.password, password):
-        return jsonify({'error': 'Invalid credentials'}), 401
+    # Reset failed attempts on successful login
+    user.failed_attempts = 0
+    user.locked_until = None
+    db.session.commit()
     
     # Create access token
     access_token = create_access_token(identity={
