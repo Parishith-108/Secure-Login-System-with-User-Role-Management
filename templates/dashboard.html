@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Secure Auth{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="header">
+        <div>
+            <h1>Dashboard</h1>
+            <p>Welcome back, {{ session.username }}</p>
+        </div>
+        <div>
+            <div class="user-badge badge-{{ 'admin' if session.user_role == 'admin' else 'user' }}">
+                {{ 'Administrator' if session.user_role == 'admin' else 'User Account' }}
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <div class="welcome-container">
+                <h1>Welcome to Your Secure Portal</h1>
+                <p>You are logged in to our secure platform with advanced security features protecting your account and data.</p>
+            </div>
+            
+            <div class="security-features">
+                <div class="security-card">
+                    <i>🔐</i>
+                    <h3>Secure Sessions</h3>
+                    <p>Encrypted session management protects your account</p>
+                </div>
+                
+                <div class="security-card">
+                    <i>📝</i>
+                    <h3>Activity Logging</h3>
+                    <p>All important actions are recorded for security</p>
+                </div>
+                
+                <div class="security-card">
+                    <i>🔔</i>
+                    <h3>Real-time Alerts</h3>
+                    <p>Get notified about suspicious activity</p>
+                </div>
+            </div>
+            
+            {% if session.user_role == 'admin' %}
+                <div class="admin-panel-link">
+                    <a href="{{ url_for('admin') }}" class="btn btn-admin">Admin Panel</a>
+                </div>
+            {% endif %}
+            
+            <div class="logout-container">
+                <a href="{{ url_for('logout') }}" class="btn btn-logout">Logout</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

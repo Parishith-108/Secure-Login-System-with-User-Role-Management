@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Register - Secure Auth{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="logo">
+        <h1>Secure<span>Auth</span></h1>
+        <p>Create your secure account</p>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h2>Create New Account</h2>
+        </div>
+        
+        <div class="card-body">
+            <form method="POST" action="/register">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    {{ form.username.label }}
+                    {{ form.username(class="form-control", placeholder="Choose a username") }}
+                    {% if form.username.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.username.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    {{ form.email.label }}
+                    {{ form.email(class="form-control", placeholder="Enter your email") }}
+                    {% if form.email.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.email.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    {{ form.password.label }}
+                    {{ form.password(class="form-control", id="register-password", placeholder="Create a strong password") }}
+                    <div class="password-strength">
+                        <div class="password-strength-meter" id="password-strength-meter"></div>
+                    </div>
+                    <div class="password-rules">
+                        Must contain uppercase, lowercase, number, and special character
+                    </div>
+                    {% if form.password.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.password.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    {{ form.role.label }}
+                    {{ form.role(class="form-control") }}
+                </div>
+                
+                <div class="form-group">
+                    <div class="recaptcha-container">
+                        <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn btn-block">Create Account</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="card-footer">
+            <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const passwordInput = document.getElementById('register-password');
+        const strengthMeter = document.getElementById('password-strength-meter');
+        
+        if (passwordInput && strengthMeter) {
+            passwordInput.addEventListener('input', () => {
+                const password = passwordInput.value;
+                const strength = calculatePasswordStrength(password);
+                
+                // Update strength meter
+                strengthMeter.className = 'password-strength-meter';
+                strengthMeter.classList.add(`strength-${strength}`);
+            });
+        }
+        
+        function calculatePasswordStrength(password) {
+            let strength = 0;
+            
+            if (password.length >= 8) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[a-z]/.test(password)) strength++;
+            if (/\d/.test(password)) strength++;
+            if (/[@$!%*?&]/.test(password)) strength++;
+            
+            return Math.min(strength, 4);
+        }
+    });
+</script>
+{% endblock %}

@@ -1,7 +1,9 @@
-__pycache__/
-*.pyc
-.env
 venv/
-node_modules/
-.vscode/.env
+__pycache__/
+*.log
+*.db
 .env
+instance/
+*.pyc
+.DS_Store
+site.db

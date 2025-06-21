@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Login - Secure Auth{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="logo">
+        <h1>Secure<span>Auth</span></h1>
+        <p>Advanced authentication and access control</p>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h2>Login to Your Account</h2>
+        </div>
+        
+        <div class="card-body">
+            <form method="POST" action="/login">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    {{ form.email.label }}
+                    {{ form.email(class="form-control", placeholder="Enter your email") }}
+                    {% if form.email.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.email.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    {{ form.password.label }}
+                    {{ form.password(class="form-control", placeholder="Enter your password") }}
+                    {% if form.password.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.password.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    <div class="recaptcha-container">
+                        <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn btn-block">Login</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="card-footer">
+            <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+        </div>
+    </div>
+    
+    <div class="security-features">
+        <div class="security-card">
+            <i>🔒</i>
+            <h3>Encrypted Passwords</h3>
+            <p>All passwords are securely hashed before storage</p>
+        </div>
+        
+        <div class="security-card">
+            <i>🛡️</i>
+            <h3>Brute Force Protection</h3>
+            <p>Account lockout after multiple failed attempts</p>
+        </div>
+        
+        <div class="security-card">
+            <i>👮‍♂️</i>
+            <h3>Role-Based Access</h3>
+            <p>Strict control over admin privileges</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

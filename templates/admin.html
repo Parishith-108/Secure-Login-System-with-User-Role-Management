@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - Secure Auth{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="header">
+        <div>
+            <h1>Admin Dashboard</h1>
+            <p>System administration and user management</p>
+        </div>
+        <div>
+            <div class="user-badge badge-admin">Administrator</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h2>User Management</h2>
+        </div>
+        
+        <div class="card-body">
+            <div class="alert alert-info">
+                <strong>Administrator Privileges:</strong> You can manage all user accounts in the system.
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            <span class="user-badge badge-{{ user.role }}">
+                                {{ user.role|capitalize }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if user.locked_until and user.locked_until > datetime.utcnow() %}
+                                <span class="status-badge status-locked">Locked</span>
+                            {% else %}
+                                <span class="status-badge status-active">Active</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <button class="btn btn-action">Edit</button>
+                            <button class="btn btn-action btn-danger">Reset</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h2>Security Overview</h2>
+        </div>
+        
+        <div class="card-body">
+            <div class="security-features">
+                <div class="security-card">
+                    <i>🔄</i>
+                    <h3>Account Lockout</h3>
+                    <p>3 failed attempts will lock account for 15 minutes</p>
+                </div>
+                
+                <div class="security-card">
+                    <i>🛡️</i>
+                    <h3>Input Validation</h3>
+                    <p>All user inputs are sanitized to prevent attacks</p>
+                </div>
+                
+                <div class="security-card">
+                    <i>🤖</i>
+                    <h3>CAPTCHA Protection</h3>
+                    <p>reCAPTCHA prevents automated login attempts</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card-footer">
+            <a href="{{ url_for('logout') }}" class="btn btn-logout">Logout</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
